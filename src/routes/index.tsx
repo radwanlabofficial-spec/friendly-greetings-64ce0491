@@ -124,7 +124,7 @@ const projects: Project[] = ([
     blurb:
       "A runway film built around stillness. Each cut held one beat longer than feels comfortable, then released.",
   },
-];
+] as Omit<Project, "video">[]).map((p, i) => ({ ...p, video: SAMPLE_VIDEOS[i % SAMPLE_VIDEOS.length] }));
 
 const services = [
   { title: "Long-form Edit", note: "Documentary, brand films, episodic" },
