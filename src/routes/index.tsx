@@ -229,6 +229,17 @@ function useMouseParallax<T extends HTMLElement>(strength = 12) {
 
 function Index() {
   const progress = useScrollProgress();
+  const [active, setActive] = useState<Project | null>(null);
+
+  useEffect(() => {
+    const onPlay = (e: Event) => {
+      const ce = e as CustomEvent<Project>;
+      setActive(ce.detail);
+    };
+    window.addEventListener("reel:play", onPlay as EventListener);
+    return () => window.removeEventListener("reel:play", onPlay as EventListener);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-gold selection:text-primary-foreground">
       <div
@@ -243,6 +254,125 @@ function Index() {
       <Services />
       <Contact />
       <Footer />
+      <ReelModal project={active} onClose={() => setActive(null)} />
+    </div>
+  );
+}
+
+function ReelModal({ project, onClose }: { project: Project | null; onClose: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  const [show, setShow] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Mount/unmount with animation
+  useEffect(() => {
+    if (project) {
+      setMounted(true);
+      // next frame -> trigger transition
+      const id = requestAnimationFrame(() => setShow(true));
+      return () => cancelAnimationFrame(id);
+    } else if (mounted) {
+      setShow(false);
+      const t = setTimeout(() => setMounted(false), 450);
+      return () => clearTimeout(t);
+    }
+  }, [project, mounted]);
+
+  // Lock scroll + ESC to close
+  useEffect(() => {
+    if (!mounted) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mounted, onClose]);
+
+  // Autoplay when opened, pause/reset on close
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (show) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  }, [show]);
+
+  if (!mounted) return null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={project ? `${project.title} — reel` : "Reel"}
+      className={`fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 transition-opacity duration-500 ease-out ${
+        show ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      <button
+        type="button"
+        aria-label="Close reel"
+        onClick={onClose}
+        className={`absolute inset-0 bg-background/85 backdrop-blur-xl transition-opacity duration-500 ${
+          show ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      <div
+        className={`relative w-full max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          show ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-[0.96] translate-y-6"
+        }`}
+      >
+        <div className="flex items-end justify-between mb-4 gap-4">
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-3 text-[10px] uppercase tracking-[0.3em] text-gold">
+              <span>{project?.no}</span>
+              <span className="text-muted-foreground">{project?.year}</span>
+              <span className="text-muted-foreground">{project?.runtime}</span>
+            </div>
+            <h2 className="mt-2 font-display text-3xl sm:text-4xl truncate">
+              {project?.title}
+            </h2>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mt-1">
+              {project?.client}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="group shrink-0 h-11 w-11 grid place-items-center rounded-full border border-gold/60 text-gold hover:bg-gold hover:text-primary-foreground transition-all duration-300 hover:rotate-90"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden>
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                fill="none"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <div className="relative aspect-video w-full overflow-hidden bg-black border border-border shadow-[0_30px_120px_-20px_rgba(0,0,0,0.8)]">
+          {project && (
+            <video
+              ref={videoRef}
+              src={project.video}
+              poster={project.image}
+              controls
+              playsInline
+              className="absolute inset-0 h-full w-full object-contain bg-black"
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
