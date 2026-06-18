@@ -597,7 +597,10 @@ function ProjectRow({ project, flip }: { project: Project; flip: boolean }) {
           <button
             type="button"
             aria-label={`Play ${project.title}`}
-            className="absolute inset-0 m-auto grid place-items-center"
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent("reel:play", { detail: project }))
+            }
+            className="absolute inset-0 m-auto grid place-items-center cursor-pointer"
           >
             <span className="relative grid place-items-center h-20 w-20 rounded-full border border-gold/60 bg-background/30 backdrop-blur-md text-gold transition-all duration-500 group-hover:bg-gold group-hover:text-primary-foreground group-hover:scale-110">
               <span className="absolute inset-0 rounded-full border border-gold/40 animate-ping opacity-0 group-hover:opacity-100" />
