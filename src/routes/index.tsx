@@ -51,7 +51,7 @@ const SAMPLE_VIDEOS = [
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4",
 ];
 
-const projects: Project[] = [
+const projects: Project[] = ([
   {
     no: "01",
     title: "Neon Cartography",
