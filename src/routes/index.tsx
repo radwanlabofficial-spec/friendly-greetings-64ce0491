@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import reel01 from "../assets/reel-01.jpg";
 import reel02 from "../assets/reel-02.jpg";
 import reel03 from "../assets/reel-03.jpg";
@@ -131,9 +132,99 @@ const tools = [
   "Frame.io",
 ];
 
+/* ---------- hooks ---------- */
+
+function useReveal<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            io.unobserve(e.target);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return ref;
+}
+
+function useScrollProgress() {
+  const [p, setP] = useState(0);
+  useEffect(() => {
+    const onScroll = () => {
+      const h = document.documentElement;
+      const max = h.scrollHeight - h.clientHeight;
+      setP(max > 0 ? h.scrollTop / max : 0);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return p;
+}
+
+function useCountUp(target: number, duration = 1600, start = false) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!start) return;
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / duration);
+      const eased = 1 - Math.pow(1 - k, 3);
+      setN(Math.round(eased * target));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration, start]);
+  return n;
+}
+
+function useMouseParallax<T extends HTMLElement>(strength = 12) {
+  const ref = useRef<T | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onMove = (e: MouseEvent) => {
+      const r = el.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      el.style.setProperty("--mx", `${x * strength}px`);
+      el.style.setProperty("--my", `${y * strength}px`);
+    };
+    const onLeave = () => {
+      el.style.setProperty("--mx", `0px`);
+      el.style.setProperty("--my", `0px`);
+    };
+    el.addEventListener("mousemove", onMove);
+    el.addEventListener("mouseleave", onLeave);
+    return () => {
+      el.removeEventListener("mousemove", onMove);
+      el.removeEventListener("mouseleave", onLeave);
+    };
+  }, [strength]);
+  return ref;
+}
+
+/* ---------- page ---------- */
+
 function Index() {
+  const progress = useScrollProgress();
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-gold selection:text-primary-foreground">
+      <div
+        className="fixed top-0 left-0 right-0 h-[2px] bg-gold z-[60] scroll-progress"
+        style={{ ["--p" as never]: progress }}
+      />
       <Nav />
       <Hero />
       <Marquee />
@@ -148,25 +239,40 @@ function Index() {
 
 function Nav() {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/40 border-b border-border/50">
+    <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/40 border-b border-border/50 animate-fade-in">
       <div className="mx-auto max-w-[1400px] px-6 lg:px-10 h-16 flex items-center justify-between">
-        <a href="#top" className="flex items-baseline gap-2">
-          <span className="font-display text-2xl leading-none">Kai Mercer</span>
+        <a href="#top" className="flex items-baseline gap-2 group">
+          <span className="font-display text-2xl leading-none transition-transform duration-500 group-hover:tracking-wide">
+            Kai Mercer
+          </span>
           <span className="hidden sm:inline text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
             / Editor
           </span>
         </a>
         <nav className="hidden md:flex items-center gap-10 text-xs uppercase tracking-[0.25em] text-muted-foreground">
-          <a href="#work" className="hover:text-foreground transition-colors">Work</a>
-          <a href="#about" className="hover:text-foreground transition-colors">About</a>
-          <a href="#services" className="hover:text-foreground transition-colors">Services</a>
-          <a href="#contact" className="hover:text-foreground transition-colors">Contact</a>
+          {[
+            ["Work", "#work"],
+            ["About", "#about"],
+            ["Services", "#services"],
+            ["Contact", "#contact"],
+          ].map(([label, href]) => (
+            <a
+              key={href}
+              href={href}
+              className="underline-grow hover:text-foreground transition-colors"
+            >
+              {label}
+            </a>
+          ))}
         </nav>
         <a
           href="#contact"
-          className="text-xs uppercase tracking-[0.25em] border border-gold/60 text-gold px-4 py-2 hover:bg-gold hover:text-primary-foreground transition-colors"
+          className="group text-xs uppercase tracking-[0.25em] border border-gold/60 text-gold px-4 py-2 hover:bg-gold hover:text-primary-foreground transition-all duration-500 hover:tracking-[0.35em]"
         >
-          Book a project
+          <span className="inline-flex items-center gap-2">
+            Book a project
+            <span className="transition-transform duration-500 group-hover:translate-x-1">→</span>
+          </span>
         </a>
       </div>
     </header>
@@ -174,48 +280,103 @@ function Nav() {
 }
 
 function Hero() {
+  const statsRef = useRef<HTMLDivElement | null>(null);
+  const [statsIn, setStatsIn] = useState(false);
+  useEffect(() => {
+    const el = statsRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => e.isIntersecting && (setStatsIn(true), io.disconnect()),
+      { threshold: 0.4 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   return (
     <section id="top" className="relative pt-40 pb-32 lg:pt-56 lg:pb-44 grain overflow-hidden">
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute top-1/3 -left-40 h-[520px] w-[520px] rounded-full bg-gold/10 blur-[140px]" />
-        <div className="absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-gold-soft/5 blur-[120px]" />
+        <div className="absolute top-1/3 -left-40 h-[520px] w-[520px] rounded-full bg-gold/10 blur-[140px] float-slow" />
+        <div className="absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-gold-soft/5 blur-[120px] float-slower" />
       </div>
 
       <div className="mx-auto max-w-[1400px] px-6 lg:px-10">
         <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.4em] text-muted-foreground mb-10 fade-up">
           <span className="h-px w-10 bg-gold/60" />
-          <span>Available · Q3 2026</span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-gold pulse-dot" />
+            Available · Q3 2026
+          </span>
         </div>
 
-        <h1 className="font-display text-[clamp(3.5rem,11vw,11rem)] leading-[0.95] tracking-tight text-balance fade-up">
-          Cutting <em className="text-gold not-italic">light</em>,
-          <br />
-          shaping <em className="italic text-gold-soft">time.</em>
+        <h1 className="font-display text-[clamp(3.5rem,11vw,11rem)] leading-[0.95] tracking-tight text-balance">
+          <span className="block fade-up" style={{ animationDelay: "0.05s" }}>
+            Cutting <em className="shimmer-text not-italic">light</em>,
+          </span>
+          <span className="block fade-up" style={{ animationDelay: "0.25s" }}>
+            shaping <em className="italic text-gold-soft">time.</em>
+          </span>
         </h1>
 
         <div className="mt-12 grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
-          <p className="lg:col-span-5 lg:col-start-7 text-base lg:text-lg text-muted-foreground leading-relaxed max-w-md fade-up">
+          <p
+            className="lg:col-span-5 lg:col-start-7 text-base lg:text-lg text-muted-foreground leading-relaxed max-w-md fade-up"
+            style={{ animationDelay: "0.5s" }}
+          >
             I&rsquo;m Kai — a freelance film and commercial editor based in Lisbon,
             working with directors, musicians and brands to find the story
             hiding in the rushes.
           </p>
         </div>
 
-        <div className="mt-20 flex flex-wrap items-baseline gap-x-16 gap-y-8 border-t border-border pt-8">
-          <Stat k="120+" v="Films edited" />
-          <Stat k="9 yrs" v="In the suite" />
-          <Stat k="14" v="Award nods" />
-          <Stat k="ACES" v="Color pipeline" />
+        <div
+          ref={statsRef}
+          className="mt-20 flex flex-wrap items-baseline gap-x-16 gap-y-8 border-t border-border pt-8"
+        >
+          <Stat k={120} suffix="+" v="Films edited" start={statsIn} />
+          <Stat k={9} suffix=" yrs" v="In the suite" start={statsIn} />
+          <Stat k={14} v="Award nods" start={statsIn} />
+          <StatStatic k="ACES" v="Color pipeline" />
+        </div>
+
+        <div className="mt-16 flex flex-col items-center text-[10px] uppercase tracking-[0.4em] text-muted-foreground">
+          <span>Scroll</span>
+          <span className="mt-3 arrow-bounce">↓</span>
         </div>
       </div>
     </section>
   );
 }
 
-function Stat({ k, v }: { k: string; v: string }) {
+function Stat({
+  k,
+  suffix = "",
+  v,
+  start,
+}: {
+  k: number;
+  suffix?: string;
+  v: string;
+  start: boolean;
+}) {
+  const n = useCountUp(k, 1600, start);
   return (
-    <div>
-      <div className="font-display text-4xl lg:text-5xl text-foreground">{k}</div>
+    <div className="group">
+      <div className="font-display text-4xl lg:text-5xl text-foreground transition-colors group-hover:text-gold">
+        {n}
+        {suffix}
+      </div>
+      <div className="mt-1 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">{v}</div>
+    </div>
+  );
+}
+
+function StatStatic({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="group">
+      <div className="font-display text-4xl lg:text-5xl text-foreground transition-colors group-hover:text-gold">
+        {k}
+      </div>
       <div className="mt-1 text-[10px] uppercase tracking-[0.3em] text-muted-foreground">{v}</div>
     </div>
   );
@@ -241,9 +402,9 @@ function Marquee() {
     >
       <div className="flex w-max marquee gap-16 px-6 font-display text-2xl text-muted-foreground/70">
         {[...items, ...items, ...items].map((c, i) => (
-          <span key={i} className="flex items-center gap-16">
+          <span key={i} className="flex items-center gap-16 hover:text-gold transition-colors">
             {c}
-            <span className="text-gold/60">✦</span>
+            <span className="text-gold/60 spin-slow inline-block">✦</span>
           </span>
         ))}
       </div>
@@ -267,21 +428,30 @@ function Selected() {
 }
 
 function ProjectRow({ project, flip }: { project: Project; flip: boolean }) {
+  const rowRef = useReveal<HTMLElement>();
+  const mediaRef = useMouseParallax<HTMLDivElement>(18);
   return (
-    <article className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+    <article
+      ref={rowRef}
+      className="reveal grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center"
+    >
       <div
-        className={`lg:col-span-8 group relative overflow-hidden ${
+        className={`lg:col-span-8 group relative overflow-hidden tilt ${
           flip ? "lg:col-start-5 lg:order-2" : ""
         }`}
       >
-        <div className="relative aspect-[16/9] overflow-hidden bg-card">
+        <div ref={mediaRef} className="relative aspect-[16/9] overflow-hidden bg-card">
           <img
             src={project.image}
             alt={`${project.title} — ${project.client}`}
             width={1600}
             height={900}
             loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.04]"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1400ms] ease-out group-hover:scale-[1.06]"
+            style={{
+              transform: "translate3d(var(--mx,0), var(--my,0), 0)",
+              transition: "transform 600ms cubic-bezier(0.22,1,0.36,1)",
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/10 to-transparent" />
           <button
@@ -289,7 +459,8 @@ function ProjectRow({ project, flip }: { project: Project; flip: boolean }) {
             aria-label={`Play ${project.title}`}
             className="absolute inset-0 m-auto grid place-items-center"
           >
-            <span className="grid place-items-center h-20 w-20 rounded-full border border-gold/60 bg-background/30 backdrop-blur-md text-gold transition-all group-hover:bg-gold group-hover:text-primary-foreground group-hover:scale-110">
+            <span className="relative grid place-items-center h-20 w-20 rounded-full border border-gold/60 bg-background/30 backdrop-blur-md text-gold transition-all duration-500 group-hover:bg-gold group-hover:text-primary-foreground group-hover:scale-110">
+              <span className="absolute inset-0 rounded-full border border-gold/40 animate-ping opacity-0 group-hover:opacity-100" />
               <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current ml-1" aria-hidden>
                 <path d="M8 5v14l11-7z" />
               </svg>
@@ -312,7 +483,7 @@ function ProjectRow({ project, flip }: { project: Project; flip: boolean }) {
           <span className="h-px flex-1 bg-border" />
           <span className="text-muted-foreground">{project.year}</span>
         </div>
-        <h3 className="mt-6 font-display text-5xl lg:text-6xl leading-[1] text-balance">
+        <h3 className="mt-6 font-display text-5xl lg:text-6xl leading-[1] text-balance transition-colors duration-500 hover:text-gold">
           {project.title}
         </h3>
         <p className="mt-3 text-sm uppercase tracking-[0.2em] text-muted-foreground">
@@ -328,20 +499,22 @@ function ProjectRow({ project, flip }: { project: Project; flip: boolean }) {
 }
 
 function About() {
+  const imgRef = useReveal<HTMLDivElement>();
+  const txtRef = useReveal<HTMLDivElement>();
   return (
     <section id="about" className="py-32 lg:py-48 border-t border-border bg-card/30">
       <div className="mx-auto max-w-[1400px] px-6 lg:px-10">
         <SectionLabel n="02" title="About" caption="The editor" />
         <div className="mt-20 grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
-          <div className="lg:col-span-5">
-            <div className="relative aspect-[4/5] overflow-hidden bg-background">
+          <div ref={imgRef} className="reveal reveal-left lg:col-span-5">
+            <div className="relative aspect-[4/5] overflow-hidden bg-background group tilt">
               <img
                 src={portrait}
                 alt="Portrait of Kai Mercer"
                 width={1000}
                 height={1280}
                 loading="lazy"
-                className="absolute inset-0 h-full w-full object-cover grayscale"
+                className="absolute inset-0 h-full w-full object-cover grayscale transition-all duration-[1400ms] group-hover:grayscale-0 group-hover:scale-[1.04]"
               />
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-foreground/80">
                 <span>Lisbon · PT</span>
@@ -349,7 +522,7 @@ function About() {
               </div>
             </div>
           </div>
-          <div className="lg:col-span-7 lg:pl-8">
+          <div ref={txtRef} className="reveal reveal-right reveal-delay-2 lg:col-span-7 lg:pl-8">
             <p className="font-display text-3xl lg:text-4xl leading-[1.2] text-balance">
               I cut for directors who care about the gap between two frames as
               much as the frames themselves.
@@ -372,7 +545,12 @@ function About() {
                 <div className="text-[10px] uppercase tracking-[0.3em] text-gold mb-3">Toolkit</div>
                 <ul className="space-y-1 text-sm">
                   {tools.map((t) => (
-                    <li key={t}>{t}</li>
+                    <li
+                      key={t}
+                      className="transition-all duration-300 hover:text-gold hover:translate-x-1"
+                    >
+                      {t}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -400,18 +578,7 @@ function Services() {
         <SectionLabel n="03" title="Services" caption="What I do" />
         <div className="mt-20 grid grid-cols-1 md:grid-cols-2 gap-px bg-border border border-border">
           {services.map((s, i) => (
-            <div
-              key={s.title}
-              className="group bg-background p-10 lg:p-14 flex flex-col justify-between min-h-[260px] hover:bg-card transition-colors"
-            >
-              <div className="text-[10px] uppercase tracking-[0.3em] text-gold">
-                {String(i + 1).padStart(2, "0")}
-              </div>
-              <div>
-                <h3 className="font-display text-4xl lg:text-5xl leading-tight">{s.title}</h3>
-                <p className="mt-4 text-sm text-muted-foreground">{s.note}</p>
-              </div>
-            </div>
+            <ServiceCard key={s.title} s={s} i={i} />
           ))}
         </div>
       </div>
@@ -419,16 +586,47 @@ function Services() {
   );
 }
 
-function Contact() {
+function ServiceCard({ s, i }: { s: { title: string; note: string }; i: number }) {
+  const ref = useReveal<HTMLDivElement>();
   return (
-    <section id="contact" className="py-32 lg:py-48 border-t border-border grain relative overflow-hidden">
-      <div className="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-gold/10 blur-[160px]" />
-      <div className="mx-auto max-w-[1400px] px-6 lg:px-10 text-center relative">
+    <div
+      ref={ref}
+      className={`reveal reveal-delay-${(i % 4) + 1} group bg-background p-10 lg:p-14 flex flex-col justify-between min-h-[260px] relative overflow-hidden transition-colors duration-500 hover:bg-card`}
+    >
+      <div
+        className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-gold scale-x-0 origin-left transition-transform duration-700 group-hover:scale-x-100"
+        aria-hidden
+      />
+      <div className="text-[10px] uppercase tracking-[0.3em] text-gold transition-transform duration-500 group-hover:translate-x-2">
+        {String(i + 1).padStart(2, "0")}
+      </div>
+      <div>
+        <h3 className="font-display text-4xl lg:text-5xl leading-tight transition-transform duration-500 group-hover:-translate-y-1">
+          {s.title}
+        </h3>
+        <p className="mt-4 text-sm text-muted-foreground">{s.note}</p>
+      </div>
+      <span className="absolute right-8 bottom-8 text-gold opacity-0 -translate-x-2 transition-all duration-500 group-hover:opacity-100 group-hover:translate-x-0">
+        →
+      </span>
+    </div>
+  );
+}
+
+function Contact() {
+  const ref = useReveal<HTMLDivElement>();
+  return (
+    <section
+      id="contact"
+      className="py-32 lg:py-48 border-t border-border grain relative overflow-hidden"
+    >
+      <div className="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 h-[500px] w-[800px] rounded-full bg-gold/10 blur-[160px] float-slow" />
+      <div ref={ref} className="reveal mx-auto max-w-[1400px] px-6 lg:px-10 text-center relative">
         <div className="text-[11px] uppercase tracking-[0.4em] text-gold">04 — Contact</div>
         <h2 className="mt-8 font-display text-[clamp(3rem,9vw,8rem)] leading-[0.95] text-balance">
           Got footage that
           <br />
-          needs a <em className="text-gold not-italic">cut?</em>
+          needs a <em className="shimmer-text not-italic">cut?</em>
         </h2>
         <p className="mt-8 text-muted-foreground max-w-md mx-auto">
           Currently booking projects from August 2026. Send a brief, a deadline,
@@ -437,10 +635,11 @@ function Contact() {
         <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
           <a
             href="mailto:kai@mercer.film"
-            className="group inline-flex items-center gap-3 bg-gold text-primary-foreground px-8 py-4 text-xs uppercase tracking-[0.3em] hover:bg-gold-soft transition-colors"
+            className="group relative inline-flex items-center gap-3 bg-gold text-primary-foreground px-8 py-4 text-xs uppercase tracking-[0.3em] overflow-hidden transition-all duration-500 hover:tracking-[0.4em]"
           >
-            kai@mercer.film
-            <span className="transition-transform group-hover:translate-x-1">→</span>
+            <span className="absolute inset-0 -translate-x-full bg-gold-soft transition-transform duration-500 group-hover:translate-x-0" />
+            <span className="relative">kai@mercer.film</span>
+            <span className="relative transition-transform duration-500 group-hover:translate-x-1">→</span>
           </a>
           <a
             href="#work"
@@ -465,10 +664,11 @@ function Footer() {
           </p>
         </div>
         <div className="flex flex-wrap gap-x-8 gap-y-3 text-xs uppercase tracking-[0.3em] text-muted-foreground">
-          <a className="hover:text-gold transition-colors" href="#">Vimeo</a>
-          <a className="hover:text-gold transition-colors" href="#">Instagram</a>
-          <a className="hover:text-gold transition-colors" href="#">LinkedIn</a>
-          <a className="hover:text-gold transition-colors" href="#">IMDb</a>
+          {["Vimeo", "Instagram", "LinkedIn", "IMDb"].map((s) => (
+            <a key={s} className="underline-grow hover:text-gold transition-colors" href="#">
+              {s}
+            </a>
+          ))}
         </div>
         <div className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground/70">
           © 2026 — All frames reserved
@@ -479,8 +679,12 @@ function Footer() {
 }
 
 function SectionLabel({ n, title, caption }: { n: string; title: string; caption: string }) {
+  const ref = useReveal<HTMLDivElement>();
   return (
-    <div className="flex items-end justify-between gap-6 border-b border-border pb-6">
+    <div
+      ref={ref}
+      className="reveal flex items-end justify-between gap-6 border-b border-border pb-6"
+    >
       <div className="flex items-baseline gap-6">
         <span className="text-[11px] uppercase tracking-[0.4em] text-gold">{n}</span>
         <h2 className="font-display text-4xl lg:text-5xl">{title}</h2>
