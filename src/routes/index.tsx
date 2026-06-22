@@ -225,6 +225,24 @@ function useMouseParallax<T extends HTMLElement>(strength = 12) {
   return ref;
 }
 
+/* ---------- video preloader ---------- */
+
+const videoCache = new Map<string, HTMLVideoElement>();
+
+function preloadVideo(src: string) {
+  if (videoCache.has(src)) return;
+  const v = document.createElement("video");
+  v.preload = "auto";
+  v.muted = true;
+  v.playsInline = true;
+  v.crossOrigin = "anonymous";
+  v.src = src;
+  v.load();
+  v.style.display = "none";
+  document.body.appendChild(v);
+  videoCache.set(src, v);
+}
+
 /* ---------- page ---------- */
 
 function Index() {
@@ -368,6 +386,8 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
               poster={project.image}
               controls
               playsInline
+              preload="auto"
+              crossOrigin="anonymous"
               className="absolute inset-0 h-full w-full object-contain bg-black"
             />
           )}
@@ -573,6 +593,7 @@ function ProjectRow({ project, flip }: { project: Project; flip: boolean }) {
   return (
     <article
       ref={rowRef}
+      onMouseEnter={() => preloadVideo(project.video)}
       className="reveal grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center"
     >
       <div
