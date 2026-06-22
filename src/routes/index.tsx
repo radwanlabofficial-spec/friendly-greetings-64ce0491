@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import reel01 from "../assets/reel-01.jpg";
 import reel02 from "../assets/reel-02.jpg";
 import reel03 from "../assets/reel-03.jpg";
@@ -228,6 +228,7 @@ function useMouseParallax<T extends HTMLElement>(strength = 12) {
 /* ---------- video preloader ---------- */
 
 const videoCache = new Map<string, HTMLVideoElement>();
+const timeCache = new Map<string, number>();
 
 function preloadVideo(src: string) {
   if (videoCache.has(src)) return;
@@ -284,6 +285,14 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
   const [bufferPct, setBufferPct] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  const handleClose = useCallback(() => {
+    const v = videoRef.current;
+    if (v && project) {
+      timeCache.set(project.video, v.currentTime);
+    }
+    onClose();
+  }, [project, onClose]);
+
   // Mount/unmount with animation
   useEffect(() => {
     if (project) {
@@ -306,21 +315,22 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") handleClose();
     };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [mounted, onClose]);
+  }, [mounted, handleClose]);
 
-  // Autoplay when opened, pause/reset on close
+  // Autoplay when opened, pause on close, restore saved time
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     if (show) {
-      v.currentTime = 0;
+      const saved = project ? (timeCache.get(project.video) ?? 0) : 0;
+      v.currentTime = saved;
       v.play().catch(() => {});
     } else {
       v.pause();
@@ -377,7 +387,7 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
       <button
         type="button"
         aria-label="Close reel"
-        onClick={onClose}
+        onClick={handleClose}
         className={`absolute inset-0 bg-background/85 backdrop-blur-xl transition-opacity duration-500 ${
           show ? "opacity-100" : "opacity-0"
         }`}
@@ -403,7 +413,7 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close"
             className="group shrink-0 h-11 w-11 grid place-items-center rounded-full border border-gold/60 text-gold hover:bg-gold hover:text-primary-foreground transition-all duration-300 hover:rotate-90"
           >
