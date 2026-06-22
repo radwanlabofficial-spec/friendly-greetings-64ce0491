@@ -280,12 +280,16 @@ function Index() {
 function ReelModal({ project, onClose }: { project: Project | null; onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [bufferPct, setBufferPct] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Mount/unmount with animation
   useEffect(() => {
     if (project) {
       setMounted(true);
+      setIsLoading(true);
+      setBufferPct(0);
       // next frame -> trigger transition
       const id = requestAnimationFrame(() => setShow(true));
       return () => cancelAnimationFrame(id);
@@ -322,6 +326,42 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
       v.pause();
     }
   }, [show]);
+
+  // Track loading state + buffer progress
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !project) return;
+
+    const onWaiting = () => setIsLoading(true);
+    const onPlaying = () => setIsLoading(false);
+    const onCanPlay = () => setIsLoading(false);
+    const onProgress = () => {
+      if (v.buffered.length && v.duration) {
+        const end = v.buffered.end(v.buffered.length - 1);
+        setBufferPct(Math.min(100, Math.round((end / v.duration) * 100)));
+      }
+    };
+    const onLoadStart = () => {
+      setIsLoading(true);
+      setBufferPct(0);
+    };
+
+    v.addEventListener("waiting", onWaiting);
+    v.addEventListener("playing", onPlaying);
+    v.addEventListener("canplay", onCanPlay);
+    v.addEventListener("canplaythrough", onCanPlay);
+    v.addEventListener("progress", onProgress);
+    v.addEventListener("loadstart", onLoadStart);
+
+    return () => {
+      v.removeEventListener("waiting", onWaiting);
+      v.removeEventListener("playing", onPlaying);
+      v.removeEventListener("canplay", onCanPlay);
+      v.removeEventListener("canplaythrough", onCanPlay);
+      v.removeEventListener("progress", onProgress);
+      v.removeEventListener("loadstart", onLoadStart);
+    };
+  }, [project]);
 
   if (!mounted) return null;
 
@@ -391,6 +431,58 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
               className="absolute inset-0 h-full w-full object-contain bg-black"
             />
           )}
+
+          {/* Loading overlay */}
+          <div
+            className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 bg-black/60 backdrop-blur-sm transition-opacity duration-500 ${
+              isLoading ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+            }`}
+          >
+            {/* Spinner */}
+            <div className="relative h-12 w-12">
+              <svg className="h-12 w-12 -rotate-90" viewBox="0 0 48 48">
+                <circle
+                  cx="24"
+                  cy="24"
+                  r="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  className="text-muted-foreground/20"
+                />
+                <circle
+                  cx="24"
+                  cy="24"
+                  r="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeDasharray={125.6}
+                  strokeDashoffset={125.6 - (125.6 * bufferPct) / 100}
+                  strokeLinecap="round"
+                  className="text-gold transition-[stroke-dashoffset] duration-300 ease-out"
+                />
+              </svg>
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-56 sm:w-72">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                  Loading reel
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-gold font-mono">
+                  {bufferPct}%
+                </span>
+              </div>
+              <div className="h-1 w-full bg-muted-foreground/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gold rounded-full transition-[width] duration-300 ease-out"
+                  style={{ width: `${bufferPct}%` }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
