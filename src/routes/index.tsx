@@ -228,6 +228,7 @@ function useMouseParallax<T extends HTMLElement>(strength = 12) {
 /* ---------- video preloader ---------- */
 
 const videoCache = new Map<string, HTMLVideoElement>();
+const timeCache = new Map<string, number>();
 
 function preloadVideo(src: string) {
   if (videoCache.has(src)) return;
