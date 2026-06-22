@@ -387,7 +387,7 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
       <button
         type="button"
         aria-label="Close reel"
-        onClick={onClose}
+        onClick={handleClose}
         className={`absolute inset-0 bg-background/85 backdrop-blur-xl transition-opacity duration-500 ${
           show ? "opacity-100" : "opacity-0"
         }`}
