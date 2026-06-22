@@ -324,12 +324,13 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
     };
   }, [mounted, onClose]);
 
-  // Autoplay when opened, pause/reset on close
+  // Autoplay when opened, pause on close, restore saved time
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     if (show) {
-      v.currentTime = 0;
+      const saved = project ? (timeCache.get(project.video) ?? 0) : 0;
+      v.currentTime = saved;
       v.play().catch(() => {});
     } else {
       v.pause();
