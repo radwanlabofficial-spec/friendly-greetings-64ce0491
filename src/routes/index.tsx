@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import reel01 from "../assets/reel-01.jpg";
 import reel02 from "../assets/reel-02.jpg";
 import reel03 from "../assets/reel-03.jpg";
