@@ -285,6 +285,14 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
   const [bufferPct, setBufferPct] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  const handleClose = useCallback(() => {
+    const v = videoRef.current;
+    if (v && project) {
+      timeCache.set(project.video, v.currentTime);
+    }
+    onClose();
+  }, [project, onClose]);
+
   // Mount/unmount with animation
   useEffect(() => {
     if (project) {
