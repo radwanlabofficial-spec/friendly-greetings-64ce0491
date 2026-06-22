@@ -322,7 +322,7 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [mounted, onClose]);
+  }, [mounted, handleClose]);
 
   // Autoplay when opened, pause on close, restore saved time
   useEffect(() => {
