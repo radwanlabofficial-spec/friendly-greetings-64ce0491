@@ -413,7 +413,7 @@ function ReelModal({ project, onClose }: { project: Project | null; onClose: () 
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close"
             className="group shrink-0 h-11 w-11 grid place-items-center rounded-full border border-gold/60 text-gold hover:bg-gold hover:text-primary-foreground transition-all duration-300 hover:rotate-90"
           >
